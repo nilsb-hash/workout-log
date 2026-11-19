@@ -120,6 +120,10 @@ label > input, label > select, label > textarea, label > .with-unit { margin-top
 .lbl { font-weight: 800; color: var(--accent); min-width: 24px; }
 .ex-name { flex: 1; font-weight: 650; }
 .target { font-size: 13px; font-weight: 700; background: var(--input); padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+.unit-toggle {
+  font-size: 13px; font-weight: 800; min-width: 40px; min-height: 30px; padding: 3px 8px;
+  border-radius: 8px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer;
+}
 .prev { color: var(--muted); margin: 0 0 8px 32px; }
 
 .sets { display: grid; gap: 6px; }
@@ -153,6 +157,9 @@ label > input, label > select, label > textarea, label > .with-unit { margin-top
 .edit-ex { display: grid; grid-template-columns: 26px 1fr 44px 44px; gap: 6px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .edit-ex .ename { grid-column: 2 / -1; }
 .edit-ex .etarget { grid-column: 2; }
+.edit-ex .eunit { grid-column: 2 / -1; }
+.edit-ex .up { grid-column: 3; grid-row: 2; }
+.edit-ex .del { grid-column: 4; grid-row: 2; }
 .edit-ex .mini { padding: 9px 0; }
 
 /* Sheet view */

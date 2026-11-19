@@ -111,9 +111,14 @@ function previousSets(session, exId) {
       ((s.date || "") === (session.date || "") && (s.created || 0) < (session.created || 0));
     if (!isEarlier) continue;
     const arr = s.sets && s.sets[exId];
-    if (arr && arr.some(hasData)) return { sets: arr, date: s.date };
+    if (arr && arr.some(hasData)) return { sets: arr, date: s.date, session: s };
   }
   return null;
+}
+
+// Each exercise can have its own unit; a session remembers the unit it was logged in.
+function unitFor(e, s) {
+  return (s && s.units && s.units[e.id]) || e.unit || state.unit;
 }
 
 function fmtSet(set, unit) {
@@ -141,7 +146,7 @@ function sessionText(s) {
   if (w) {
     w.blocks.forEach((b, bi) => {
       b.exercises.forEach((e, ei) => {
-        const done = fmtSets(s.sets[e.id], unit);
+        const done = fmtSets(s.sets[e.id], unitFor(e, s));
         lines.push(`${label(bi, ei)} ${e.name} (${e.target}): ${done || "–"}`);
       });
     });
@@ -309,7 +314,7 @@ function viewLog(id) {
     </section>
     ${w.blocks.map((b, bi) => `
       <h2 class="block-h"><span>Block ${bi + 1}</span> ${esc(b.name)}</h2>
-      ${b.exercises.map((e, ei) => exerciseCard(s, e, label(bi, ei), unit)).join("")}
+      ${b.exercises.map((e, ei) => exerciseCard(s, e, label(bi, ei))).join("")}
     `).join("")}
     <section class="card esd">
       <label class="checkline"><input type="checkbox" id="esd" ${s.esd ? "checked" : ""}>
@@ -328,8 +333,9 @@ function viewLog(id) {
   bindLog(s, w);
 }
 
-function exerciseCard(s, e, lbl, unit) {
+function exerciseCard(s, e, lbl) {
   const prev = previousSets(s, e.id);
+  const unit = unitFor(e, s);
   const sets = s.sets[e.id];
   return `
   <article class="card ex" data-ex="${esc(e.id)}">
@@ -337,8 +343,9 @@ function exerciseCard(s, e, lbl, unit) {
       <span class="lbl">${lbl}</span>
       <span class="ex-name">${esc(e.name)}</span>
       <span class="target">${esc(e.target)}</span>
+      <button class="unit-toggle" aria-label="Weight unit, tap to switch">${unit}</button>
     </header>
-    ${prev ? `<div class="prev small">Last (${fmtDate(prev.date)}): ${esc(fmtSets(prev.sets, unit))}</div>` : ""}
+    ${prev ? `<div class="prev small">Last (${fmtDate(prev.date)}): ${esc(fmtSets(prev.sets, unitFor(e, prev.session)))}</div>` : ""}
     <div class="sets">
       ${sets.map((set, i) => {
         const p = prev && prev.sets[i] ? prev.sets[i] : {};
@@ -374,7 +381,11 @@ function bindLog(s, w) {
       const card = t.closest(".ex");
       if (!row || !card) return;
       const set = s.sets[card.dataset.ex][parseInt(row.dataset.i, 10)];
-      if (t.classList.contains("w")) set.w = t.value.trim();
+      if (t.classList.contains("w")) {
+        set.w = t.value.trim();
+        s.units = s.units || {};
+        if (!s.units[card.dataset.ex]) s.units[card.dataset.ex] = unitFor(exById(card.dataset.ex), s);
+      }
       if (t.classList.contains("r")) set.r = t.value.trim();
     }
     persist();
@@ -396,7 +407,14 @@ function bindLog(s, w) {
     if (card) {
       const exId = card.dataset.ex;
       const sets = s.sets[exId];
-      if (btn.classList.contains("add")) sets.push({ w: "", r: "" });
+      if (btn.classList.contains("unit-toggle")) {
+        const ex = exById(exId);
+        const next = unitFor(ex, s) === "kg" ? "lb" : "kg";
+        ex.unit = next;                       // remembered for next time
+        s.units = s.units || {};
+        s.units[exId] = next;                 // this session
+      }
+      else if (btn.classList.contains("add")) sets.push({ w: "", r: "" });
       else if (btn.classList.contains("remove")) sets.pop();
       else if (btn.classList.contains("fill")) s.sets[exId] = sets.map((x, i) => i === 0 ? x : { w: sets[0].w, r: sets[0].r });
       else if (btn.classList.contains("copy")) {
@@ -404,7 +422,7 @@ function bindLog(s, w) {
         if (prev) s.sets[exId] = prev.sets.map(x => ({ w: x.w, r: x.r }));
       } else return;
       persist();
-      card.outerHTML = exerciseCard(s, exById(exId), card.querySelector(".lbl").textContent, state.unit);
+      card.outerHTML = exerciseCard(s, exById(exId), card.querySelector(".lbl").textContent);
       return;
     }
     if (btn.id === "share") shareText(`Workout ${s.workoutId}`, sessionText(s));
@@ -492,7 +510,7 @@ function viewTable(wid) {
             <tr class="blockrow"><td colspan="6">Block ${bi + 1} – ${esc(b.name)}</td></tr>
             ${b.exercises.map((e, ei) => `<tr>
               <td>${label(bi, ei)}</td><td>${esc(e.name)}</td><td class="nowrap">${esc(e.target)}</td>
-              ${cols.map(s => `<td>${s ? esc(fmtSets(s.sets[e.id], unit)) || "–" : ""}</td>`).join("")}
+              ${cols.map(s => `<td>${s ? esc(fmtSets(s.sets[e.id], unitFor(e, s))) || "–" : ""}</td>`).join("")}
             </tr>`).join("")}`).join("")}
           <tr class="blockrow"><td colspan="3">Post-lift ESD – ${esc(prog.esd || "")}</td>
             ${cols.map(s => `<td>${s ? (s.esd ? "✓" : "–") : ""}</td>`).join("")}</tr>
@@ -512,7 +530,7 @@ function viewSettings() {
   $view.innerHTML = `
     <section class="card form">
       <label>Athlete name<input id="athlete" value="${esc(state.athlete)}" placeholder="Your name" autocomplete="name"></label>
-      <label>Weight unit
+      <label>Default weight unit
         <select id="unit"><option value="kg" ${state.unit === "kg" ? "selected" : ""}>kg</option>
         <option value="lb" ${state.unit === "lb" ? "selected" : ""}>lb</option></select></label>
     </section>
@@ -613,6 +631,11 @@ function viewEdit(wid) {
             <span class="lbl">${label(bi, ei)}</span>
             <input class="ename" value="${esc(e.name)}" placeholder="Exercise" aria-label="Exercise name">
             <input class="etarget" value="${esc(e.target)}" placeholder="3 × 10" aria-label="Sets × reps">
+            <select class="eunit" aria-label="Weight unit">
+              <option value="" ${!e.unit ? "selected" : ""}>Default (${state.unit})</option>
+              <option value="kg" ${e.unit === "kg" ? "selected" : ""}>kg</option>
+              <option value="lb" ${e.unit === "lb" ? "selected" : ""}>lb</option>
+            </select>
             <button class="mini up" aria-label="Move up">↑</button>
             <button class="mini del" aria-label="Remove">✕</button>
           </div>`).join("")}
@@ -635,6 +658,10 @@ function viewEdit(wid) {
       const ex = b.exercises[ei];
       row.querySelector(".ename").addEventListener("input", e => { ex.name = e.target.value; save(); });
       row.querySelector(".etarget").addEventListener("input", e => { ex.target = e.target.value; save(); });
+      row.querySelector(".eunit").addEventListener("change", e => {
+        if (e.target.value) ex.unit = e.target.value; else delete ex.unit;
+        save();
+      });
       row.querySelector(".up").onclick = () => {
         if (ei === 0) return;
         [b.exercises[ei - 1], b.exercises[ei]] = [b.exercises[ei], b.exercises[ei - 1]];

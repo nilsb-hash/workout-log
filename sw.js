@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION whenever you change any app file so phones pick up the update.
-const VERSION = "v1";
+const VERSION = "v2";
 const FILES = ["./", "index.html", "app.js", "program.js", "styles.css",
   "manifest.webmanifest", "icon-180.png", "icon-512.png"];
 
